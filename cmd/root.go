@@ -156,7 +156,7 @@ func exportTracks(tracks []*types.Track, outPath string) error {
 }
 
 func addMetadata(track *types.Track) error {
-	fmt.Printf("Attempting to add metadata to %s...\n", track.Title)
+	defer fmt.Printf("Added metadata to %q successfully\n", track.Title)
 
 	filename := fmt.Sprintf("%d - %s.%s", track.TrackNumber, track.Title, format)
 	inputPath := fmt.Sprintf("%s/%s.%s", outputDir, track.Title, format)
@@ -288,16 +288,20 @@ func getTracksFromCSV(csvPath string) ([]*types.Track, error) {
 	var from int
 	var to int
 
+	fmt.Printf("Found %d tracks:\n", len(records))
 	for line, record := range records {
 		track := &types.Track{}
 		title = record[0]
 		from, err = timeToSeconds(record[1])
 
+		track.TrackNumber = line + 1
+		track.From = from
+		track.Title = title
+
+		fmt.Printf("%d - %q\n", track.TrackNumber, track.Title)
+
 		// If last track and end is not specified
 		if record[2] == "" {
-			track.TrackNumber = line + 1
-			track.From = from
-			track.Title = title
 			track.To = -1
 			tracks = append(tracks, track)
 			break
