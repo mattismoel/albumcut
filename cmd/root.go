@@ -4,8 +4,10 @@ Copyright © 2023 Mattis Kristensen <mattismoel@gmail.com>
 package cmd
 
 import (
+	// "bytes"
 	"bytes"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -26,6 +28,8 @@ var (
 	inputPath    string
 	coverArtPath string
 	format       string
+	outputDir    string
+	clean        bool
 )
 
 var rootCmd = &cobra.Command{
@@ -38,155 +42,178 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		outputDir = strings.TrimSuffix(outputDir, "/")
 
-		if youtubeLink != "" {
-			_, err := exec.LookPath("yt-dlp")
-			if err != nil {
-				log.Fatalf("Could not get YouTube link: %v\n", err)
-			}
-			command := exec.Command("yt-dlp", "-f", "140", "-o", "output.m4a", youtubeLink)
-
-			err = command.Run()
-			if err != nil {
-				log.Fatalf("Could not run command: %v\n", err)
-			}
-
-			fmt.Println("Successfully downloaded YouTube video.")
-			fmt.Println("Reading CSV file...")
-
-			songs := []*types.Song{}
-
-			f, err := os.Open(inputPath)
-			if err != nil {
-				log.Fatalf("Could not read CSV input file %s: %v\n", inputPath, err)
-			}
-			defer f.Close()
-
-			csvReader := csv.NewReader(f)
-			records, err := csvReader.ReadAll()
-			if err != nil {
-				log.Fatalf("Unable to parse CSV file %s: %v\n", inputPath, err)
-			}
-
-			var songTitle string
-			var from int
-			var to int
-			var duration time.Duration
-
-			for line, record := range records {
-				song := &types.Song{}
-				songTitle = record[0]
-				if songTitle == "" {
-					fmt.Printf("Could not parse the song at line %v", line)
-					continue
-				}
-
-				from, err = timeToSeconds(record[1])
-				if err != nil {
-					log.Fatalf("Could not parse the timestamp at line %v: %v\n", line, err)
-				}
-
-				if record[2] == "" {
-
-				}
-				to, err = timeToSeconds(record[2])
-				if err != nil {
-					if to == -1 {
-
-					}
-					log.Fatalf("Could not parse the end time stamp at line %v: %v\n", line, err)
-				}
-
-				duration = time.Duration(to)*time.Second - time.Duration(from)*time.Second
-
-				song.Title = songTitle
-				song.From = from
-				song.Duration = duration
-
-				songs = append(songs, song)
-			}
-
-			for track_number, song := range songs {
-				fileName := fmt.Sprintf("%s.%s", song.Title, format)
-				fromString := fmt.Sprintf("%d", song.From)
-				durationString := fmt.Sprintf("%d", int(song.Duration.Seconds()))
-
-				// commandString := fmt.Sprintf("-ss %d -i %s -t %d %s", song.From, inputPath)
-				fmt.Println(fileName, fromString, durationString)
-				cutCmd := exec.Command("ffmpeg", "-ss", fromString, "-i", "output.m4a", "-t", durationString, fileName)
-				err = cutCmd.Run()
-				if err != nil {
-					log.Fatalf("Could not cut the audio file: %v\n", err)
-				}
-
-				// ffmpeg
-				// -i "Song 1.mp3"
-				// -c copy
-				// -metadata author="Test Artist"
-				// -metadata album="Test Album"
-				// -metadata album_artist="Test Album Artist"
-				// -metadata year=2020
-				// -metadata title="Title"
-				// "Song 1 cp.mp3"
-
-				// ffmpeg
-				// -i "out.mp3"
-				// -i "images.jpg"
-				// -map 0:0
-				// -map 1:0
-				// -c copy
-				// -metadata author="Test Artist"
-				// -metadata lbum="Test Album"
-				// -metadata album_artist="Test Album Artist"
-				// -metadata year=2020
-				// -metadata title="Title"
-				// -metadata track=1
-				// -metadata:s:v
-				// title="Album cover"
-				// -metadata:s:v comment="Cover (front)" outcover.mp3
-				fmt.Printf("Attempting to add metadata to %s...", fileName)
-				var out bytes.Buffer
-				var stderr bytes.Buffer
-				metadataCmd := exec.Command(
-					"ffmpeg",
-					"-i", fileName,
-					"-i", coverArtPath,
-					"-map", "0:0",
-					"-map", "1:0",
-					"-c", "copy",
-					// "id3v2_version 3",
-					"-metadata", fmt.Sprintf("author=%s", artist),
-					"-metadata", fmt.Sprintf("artist=%s", artist),
-					"-metadata", fmt.Sprintf("composer=%s", artist),
-					"-metadata", fmt.Sprintf("album=%s", albumTitle),
-					"-metadata", fmt.Sprintf("album_artist=%s", artist),
-					"-metadata", fmt.Sprintf("year=%d", year),
-					"-metadata", fmt.Sprintf("title=%s", song.Title),
-					"-metadata", fmt.Sprintf("track=%d", track_number+1),
-					"-metadata", fmt.Sprintf("title=%s", "Album Cover"),
-					"-metadata:s:v", fmt.Sprintf("comment=%s", "Cover (front)"),
-					fmt.Sprintf("%d - %s.%s", track_number+1, song.Title, format),
-				)
-
-				metadataCmd.Stdout = &out
-				metadataCmd.Stderr = &stderr
-
-				err = metadataCmd.Run()
-				if err != nil {
-					fmt.Println(fmt.Sprint(err), ":", stderr.String())
-				}
-				fmt.Println("result: ", out.String())
-
-				err := exec.Command("rm", fileName).Run()
-				if err != nil {
-					log.Fatalf("Could not remove temp files: %v\n", err)
-				}
-
-			}
-
+		// If user does not wish to export to current folder
+		if outputDir != "./" {
+			outputDir += fmt.Sprintf("/%s - %s (%d)", artist, albumTitle, year)
 		}
 
+		// If no YouTube link is provided
+		if youtubeLink == "" {
+			return
+		}
+
+		err := downloadYoutubeVideo(youtubeLink)
+		if err != nil {
+			log.Fatalf("Could not download YouTube video: %v", err)
+		}
+
+		tracks, err := getTracksFromCSV(inputPath)
+		if err != nil {
+			log.Fatalf("Could not parse CSV file: %v\n", err)
+		}
+
+		// If output directory does not exist, create the directory
+		if _, err := os.Stat(outputDir); errors.Is(err, os.ErrNotExist) {
+			err = os.Mkdir(outputDir, os.ModePerm)
+			if err != nil {
+				log.Fatalf("Could not create output directory at %s: %v\n", outputDir, err)
+			}
+		}
+
+		err = exportTracks(tracks, outputDir)
+		if err != nil {
+			log.Fatalf("Could not create tracks at location %s: %v\n", outputDir, err)
+		}
+
+		if clean {
+			err := cleanUp()
+			if err != nil {
+				log.Fatalf("Could not clean up: %v\n", err)
+			}
+		}
 	},
+}
+
+func cleanUp() error {
+	err := os.Remove("output.m4a")
+	if err != nil {
+		return err
+	}
+
+	err = os.Remove(inputPath)
+	if err != nil {
+		return err
+	}
+
+	err = os.Remove(coverArtPath)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func exportTrack(track *types.Track, outPath string) error {
+	args := []string{"-i", "output.m4a", "-ss", strconv.Itoa(track.From)}
+
+	duration := getTrackDuration(track)
+	fileName := fmt.Sprintf("%s/%s.%s", outPath, track.Title, format)
+
+	if track.To == -1 {
+		args = append(args, fileName)
+	} else {
+		args = append(args, "-t", strconv.Itoa(int(duration.Seconds())), fileName)
+	}
+
+	command := exec.Command("ffmpeg", args...)
+
+	var stderr bytes.Buffer
+	command.Stderr = &stderr
+
+	err := command.Run()
+	if err != nil {
+		return fmt.Errorf("Could not process audio for file %s: %v: %v\n", fileName, err, stderr.String())
+	}
+
+	err = addMetadata(track)
+	if err != nil {
+		return fmt.Errorf("Could not add metadata: %v\n", err)
+	}
+
+	err = os.Remove(fileName)
+	if err != nil {
+		return err
+	}
+
+	// err = os.Remove("output.m4a")
+	// if err != nil {
+	// 	return err
+	// }
+
+	return nil
+}
+
+func exportTracks(tracks []*types.Track, outPath string) error {
+	for _, track := range tracks {
+		err := exportTrack(track, outPath)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func addMetadata(track *types.Track) error {
+	fmt.Printf("Attempting to add metadata to %s...\n", track.Title)
+
+	filename := fmt.Sprintf("%d - %s.%s", track.TrackNumber, track.Title, format)
+	inputPath := fmt.Sprintf("%s/%s.%s", outputDir, track.Title, format)
+	outputPath := fmt.Sprintf("%s/%s", outputDir, filename)
+
+	args := []string{
+		"-i", inputPath,
+		"-i", coverArtPath,
+		"-map", "0:0",
+		"-map", "1:0",
+		"-c", "copy",
+		"-metadata", fmt.Sprintf("author=%s", artist),
+		"-metadata", fmt.Sprintf("artist=%s", artist),
+		"-metadata", fmt.Sprintf("composer=%s", artist),
+		"-metadata", fmt.Sprintf("album=%s", albumTitle),
+		"-metadata", fmt.Sprintf("album_artist=%s", artist),
+		"-metadata", fmt.Sprintf("year=%d", year),
+		"-metadata", fmt.Sprintf("title=%s", track.Title),
+		"-metadata", fmt.Sprintf("track=%d", track.TrackNumber),
+		"-metadata:s:v", fmt.Sprintf("comment=%s", "Cover (front)"),
+		outputPath,
+	}
+
+	command := exec.Command("ffmpeg", args...)
+
+	var stderr bytes.Buffer
+	var out bytes.Buffer
+
+	command.Stdout = &out
+	command.Stderr = &stderr
+
+	err := command.Run()
+	if err != nil {
+		return fmt.Errorf("%v: %v\n", err, stderr.String())
+	}
+
+	return nil
+}
+
+func downloadYoutubeVideo(link string) error {
+	_, err := exec.LookPath("yt-dlp")
+	if err != nil {
+		return fmt.Errorf("no such command 'yt-dlp': %v\n", err)
+	}
+
+	defer log.Printf("Downloaded audio from YouTube video %q successfully\n", link)
+	cmdArguments := []string{"-f", "140", "-o", "output.m4a", youtubeLink}
+
+	command := exec.Command("yt-dlp", cmdArguments...)
+	var stderr bytes.Buffer
+	command.Stderr = &stderr
+	err = command.Run()
+	if err != nil {
+		return fmt.Errorf("%v:%v", err, stderr.String())
+	}
+
+	return nil
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -206,6 +233,8 @@ func init() {
 	rootCmd.Flags().StringVarP(&artist, "artist", "a", "", "The artist of the album.")
 	rootCmd.Flags().StringVarP(&youtubeLink, "youtubeLink", "l", "", "Link to a YouTube video.")
 	rootCmd.Flags().StringVarP(&format, "format", "f", "mp3", "The desired output format of tracks.")
+	rootCmd.Flags().StringVarP(&outputDir, "output", "o", "./", "The directory to where the tracks are to be exported. AlbumCut will create the album directory itself. Defaults to current directory.")
+	rootCmd.Flags().BoolVar(&clean, "clean", true, "Clean up files after export (CSV file, cover art)")
 
 	rootCmd.MarkFlagRequired("input")
 	rootCmd.MarkFlagRequired("albumTitle")
@@ -236,4 +265,67 @@ func timeToSeconds(timestamp string) (int, error) {
 
 	totalSeconds := hour*3600 + minute*60 + second
 	return totalSeconds, nil
+}
+
+func getTracksFromCSV(csvPath string) ([]*types.Track, error) {
+	defer fmt.Printf("Successfully parsed CSV file %s\n", csvPath)
+	tracks := []*types.Track{}
+
+	// Attempt to open file and parse CSV contents
+	f, err := os.Open(csvPath)
+	if err != nil {
+		log.Fatalf("Could not read CSV input file %s: %v\n", inputPath, err)
+	}
+	defer f.Close()
+
+	csvReader := csv.NewReader(f)
+	records, err := csvReader.ReadAll()
+	if err != nil {
+		return nil, err
+	}
+
+	var title string
+	var from int
+	var to int
+
+	for line, record := range records {
+		track := &types.Track{}
+		title = record[0]
+		from, err = timeToSeconds(record[1])
+
+		// If last track and end is not specified
+		if record[2] == "" {
+			track.TrackNumber = line + 1
+			track.From = from
+			track.Title = title
+			track.To = -1
+			tracks = append(tracks, track)
+			break
+		}
+
+		from, err = timeToSeconds(record[1])
+		if err != nil {
+			log.Fatalf("Could not parse the timestamp at line %v: %v\n", line, err)
+		}
+
+		to, err = timeToSeconds(record[2])
+
+		if err != nil {
+			log.Fatalf("Could not parse date: %v\n", err)
+		}
+
+		track.Title = title
+		track.TrackNumber = line + 1
+		track.From = from
+		track.To = to
+
+		tracks = append(tracks, track)
+	}
+
+	return tracks, nil
+}
+
+func getTrackDuration(track *types.Track) time.Duration {
+	duration := time.Duration(track.To)*time.Second - time.Duration(track.From)*time.Second
+	return duration
 }
