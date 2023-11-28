@@ -14,6 +14,8 @@ AlbumCut requires you to have the following packages installed on your system:
 
 Clone this repositiory to a directory of choice. The the executables are located in the `bin` directory. Here are versions for the following operating systems:
 
+| OS      | Binary             |
+:---------:--------------------:
 | Linux   | `albumcut-linux`   |
 | MacOS   | `albumcut-macos`   |
 | Windows | `albumcut-windows` |
