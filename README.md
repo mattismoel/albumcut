@@ -19,3 +19,9 @@ Clone this repositiory to a directory of choice. The the executables are located
 | Linux   | `albumcut-linux`   |
 | MacOS   | `albumcut-macos`   |
 | Windows | `albumcut-windows` |
+
+The command can then be run in your terminal window with the following command:
+
+```bash
+$ ./bin/albumcut-<os> --youtubeLink="https://youtu.be/<video_id>" --artist="Artist Name" --albumTitle="Album Title" --year 2023 --cover="cover.png"
+```
