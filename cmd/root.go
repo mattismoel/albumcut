@@ -14,7 +14,6 @@ import (
 	"strconv"
 	"strings"
 
-	// "sync"
 	"time"
 
 	"github.com/fatih/color"
@@ -143,11 +142,26 @@ func exportTrack(track *types.Track, outPath string) error {
 }
 
 func exportTracks(tracks []*types.Track, outPath string) error {
+	defer fmt.Printf("\nSuccessfully exported all tracks. The album is located at %q.\n", outPath)
+
+	errs := new(errgroup.Group)
+
 	for _, track := range tracks {
-		err := exportTrack(track, outPath)
-		if err != nil {
-			return err
-		}
+		t := track
+		errs.Go(func() error {
+			defer color.Cyan("[SUCCESS] %q\n", t.Title)
+			err := exportTrack(t, outPath)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+	}
+
+	err := errs.Wait()
+
+	if err != nil {
+		return err
 	}
 	return nil
 }
