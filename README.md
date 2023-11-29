@@ -22,18 +22,18 @@ Clone this repositiory to a directory of choice. The the executables are located
 
 The program requires a `.csv` file containing the tracklist. This `.csv` file should be of the following format:
 
-```
+```csv
 track_title, from, to,
+...
 ...
 ```
 
 An example file could look like this:
 
-```
+```csv
 Maria También,00:00:01,00:03:16
 August 10,00:03:17,00:07:46
 White Gloves,00:07:47,
-
 ```
 > Notice that the last track does not have a "to" timestamp. This ensures that the last track will go on till the end of the video. Optionally a end time stamp can be provided.
 
