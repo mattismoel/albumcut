@@ -83,17 +83,17 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.Flags().StringVarP(&inputPath, "input", "i", "input.csv", "The CSV input file containing cut information.")
-	rootCmd.Flags().StringVarP(&coverArtPath, "cover", "c", "cover.png", "The path to the cover art.")
+	rootCmd.Flags().StringVarP(&inputPath, "input", "i", "tracklist.csv", "The CSV input file containing cut information.")
+	rootCmd.Flags().StringVarP(&coverArtPath, "cover", "c", "", "The path to the cover art.")
 	rootCmd.Flags().StringVarP(&albumTitle, "albumTitle", "t", "", "The title of the album that is to be cut.")
 	rootCmd.Flags().IntVarP(&year, "year", "y", -1, "The release year of the album.")
 	rootCmd.Flags().StringVarP(&artist, "artist", "a", "", "The artist of the album.")
-	rootCmd.Flags().StringVarP(&youtubeLink, "youtubeLink", "l", "", "Link to a YouTube video.")
+	rootCmd.Flags().StringVarP(&youtubeLink, "link", "l", "", "Link to a YouTube video.")
 	rootCmd.Flags().StringVarP(&format, "format", "f", "mp3", "The desired output format of tracks.")
-	rootCmd.Flags().StringVarP(&outputDir, "output", "o", "./", "The directory to where the tracks are to be exported. AlbumCut will create the album directory itself. Defaults to current directory.")
+	rootCmd.Flags().StringVarP(&outputDir, "output", "o", "./", "The directory to where the tracks are to be exported. AlbumCut will create the album directory itself.")
 	rootCmd.Flags().BoolVar(&clean, "clean", true, "Clean up files after export (CSV file, cover art)")
 
-	rootCmd.MarkFlagRequired("")
+	rootCmd.MarkFlagRequired("cover")
 	rootCmd.MarkFlagRequired("youtubeLink")
 	rootCmd.MarkFlagRequired("albumTitle")
 	rootCmd.MarkFlagRequired("artist")
