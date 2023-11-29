@@ -180,8 +180,6 @@ func exportTracks(tracks []*types.Track, outPath string) error {
 }
 
 func addMetadata(track *types.Track) error {
-	defer fmt.Printf("Added metadata to %q successfully\n", track.Title)
-
 	filename := fmt.Sprintf("%d - %s.%s", track.TrackNumber, track.Title, format)
 	inputPath := fmt.Sprintf("%s/%s.%s", outputDir, track.Title, format)
 	outputPath := fmt.Sprintf("%s/%s", outputDir, filename)
@@ -221,12 +219,12 @@ func addMetadata(track *types.Track) error {
 }
 
 func downloadYoutubeVideo(link string) error {
+	defer fmt.Printf("Downloaded audio from YouTube video %q successfully\n\n", link)
 	_, err := exec.LookPath("yt-dlp")
 	if err != nil {
 		return fmt.Errorf("no such command 'yt-dlp': %v\n", err)
 	}
 
-	defer log.Printf("Downloaded audio from YouTube video %q successfully\n", link)
 	cmdArguments := []string{"-f", "140", "-o", "output.m4a", youtubeLink}
 
 	command := exec.Command("yt-dlp", cmdArguments...)
@@ -275,7 +273,7 @@ func timeToSeconds(timestamp string) (int, error) {
 }
 
 func getTracksFromCSV(csvPath string) ([]*types.Track, error) {
-	defer fmt.Printf("Successfully parsed CSV file %s\n", csvPath)
+	defer fmt.Printf("\nSuccessfully parsed CSV file %s\n\n", csvPath)
 	tracks := []*types.Track{}
 
 	// Attempt to open file and parse CSV contents
@@ -295,7 +293,7 @@ func getTracksFromCSV(csvPath string) ([]*types.Track, error) {
 	var from int
 	var to int
 
-	fmt.Printf("Found %d tracks:\n", len(records))
+	fmt.Printf("Found %d tracks:\n\n", len(records))
 	for line, record := range records {
 		track := &types.Track{}
 		title = record[0]
@@ -305,7 +303,7 @@ func getTracksFromCSV(csvPath string) ([]*types.Track, error) {
 		track.From = from
 		track.Title = title
 
-		fmt.Printf("%d - %q\n", track.TrackNumber, track.Title)
+		fmt.Printf("%-6d%q\n", track.TrackNumber, track.Title)
 
 		// If last track and end is not specified
 		if record[2] == "" {
