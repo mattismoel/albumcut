@@ -4,7 +4,6 @@ Copyright © 2023 Mattis Kristensen <mattismoel@gmail.com>
 package cmd
 
 import (
-	// "bytes"
 	"bytes"
 	"encoding/csv"
 	"errors"
@@ -14,10 +13,14 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+
+	// "sync"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/mattismoel/albumcut/types"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
