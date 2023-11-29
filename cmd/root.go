@@ -250,7 +250,7 @@ func Execute() {
 func timeToSeconds(timestamp string) (int, error) {
 	parts := strings.Split(timestamp, ":")
 	if len(parts) != 3 {
-		return 0, fmt.Errorf("invalid timestamp format: %s", timestamp)
+		return 0, fmt.Errorf("Invalid timestamp format. Must be of format %q but got %q", "hh:mm:ss", timestamp)
 	}
 
 	hour, err := strconv.Atoi(parts[0])
@@ -273,7 +273,6 @@ func timeToSeconds(timestamp string) (int, error) {
 }
 
 func getTracksFromCSV(csvPath string) ([]*types.Track, error) {
-	defer fmt.Printf("\nSuccessfully parsed CSV file %s\n\n", csvPath)
 	tracks := []*types.Track{}
 
 	// Attempt to open file and parse CSV contents
@@ -293,11 +292,23 @@ func getTracksFromCSV(csvPath string) ([]*types.Track, error) {
 	var from int
 	var to int
 
+	illegalChars := []string{"/", "\"\""}
 	fmt.Printf("Found %d tracks:\n\n", len(records))
 	for line, record := range records {
 		track := &types.Track{}
-		title = record[0]
-		from, err = timeToSeconds(record[1])
+
+		title = strings.TrimSpace(record[0])
+
+		for _, char := range illegalChars {
+			if strings.Contains(title, char) {
+				return nil, fmt.Errorf("Title must not contain %q. Found in title %q\n", char, title)
+			}
+		}
+
+		fromStr := strings.TrimSpace(record[1])
+		toStr := strings.TrimSpace(record[2])
+
+		from, err = timeToSeconds(fromStr)
 
 		track.TrackNumber = line + 1
 		track.From = from
@@ -306,19 +317,18 @@ func getTracksFromCSV(csvPath string) ([]*types.Track, error) {
 		fmt.Printf("%-6d%q\n", track.TrackNumber, track.Title)
 
 		// If last track and end is not specified
-		if record[2] == "" {
+		if toStr == "" {
 			track.To = -1
 			tracks = append(tracks, track)
 			break
 		}
 
-		from, err = timeToSeconds(record[1])
+		from, err = timeToSeconds(fromStr)
 		if err != nil {
 			log.Fatalf("Could not parse the timestamp at line %v: %v\n", line, err)
 		}
 
-		to, err = timeToSeconds(record[2])
-
+		to, err = timeToSeconds(toStr)
 		if err != nil {
 			log.Fatalf("Could not parse date: %v\n", err)
 		}
@@ -331,6 +341,7 @@ func getTracksFromCSV(csvPath string) ([]*types.Track, error) {
 		tracks = append(tracks, track)
 	}
 
+	fmt.Printf("\nSuccessfully parsed CSV file %s\n\n", csvPath)
 	return tracks, nil
 }
 
